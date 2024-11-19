@@ -15,7 +15,6 @@ import { FlightChecklistUpdated, FlightFromQuotationRequest } from 'src/events/f
 import { generateUID } from 'src/utils/uid.util';
 import { platformFee } from 'src/utils/constants';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { ValidationError } from 'class-validator';
 import { InvoiceStatusChangeEvent } from 'src/events/invoice-status-change.event';
 import { BookingsService } from 'src/bookings/bookings.service';
 import { SendEmailEvent } from 'src/events/notifications.events';
@@ -139,6 +138,14 @@ export class FlightsService {
 
     async findByFilter(filter: any) {
         return await this.model.find({ ...filter });
+    }
+
+    async getFlightsWithOperators(filter: any) {
+        return this.model
+            .find({ ...filter })
+            .populate('operator') // Specify fields to include
+            .populate('aircraft')
+            .exec();
     }
 
     async findInIdsArray(filter: any) {
@@ -336,7 +343,7 @@ export class FlightsService {
 
             const aircraft = await this.assetsService.findOne(payload.quotation.aircraftId);
 
-            let flight = {
+            const flight = {
                 ...payload.quotation.flightDetails,
                 quotationId: payload.quotation._id,
                 airline: operator.airline,
@@ -453,7 +460,7 @@ export class FlightsService {
             }
         }
 
-        let writeOperations = [];
+        const writeOperations = [];
         writeOperations.push(...expiredFlights.map((item) => {
             return {
                 updateOne: {

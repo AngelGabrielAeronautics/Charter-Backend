@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
-import { HydratedDocument } from "mongoose";
+import { HydratedDocument, Types } from "mongoose";
 import { IAirport } from "src/airports/airport.model";
 import { IFlightChecklist, IPassenger } from "src/flights/flight.model";
 import { IAuditFields } from "src/models/audit-fields.model";
@@ -8,7 +8,7 @@ import { INote } from "src/models/notes.model";
 export type FlightDocument = HydratedDocument<Flight>;
 
 @Schema()
-export class Flight{
+export class Flight {
 
     @Prop({ required: true })
     airline: string;
@@ -34,21 +34,21 @@ export class Flight{
     @Prop({ required: true })
     status: string;
 
-    @Prop({ required: true })
-    aircraftId: string;
+    @Prop({ type: Types.ObjectId, ref: 'Asset', required: true })
+    aircraftId: Types.ObjectId;
 
     @Prop({ required: true })
     aircraftManufacturer: string;
-    
+
     @Prop({ required: true })
     aircraftModel: string;
 
     @Prop({ required: true })
     aircraftRegistrationNumber: string;
-    
+
     @Prop({ required: true })
     arrivalDate: Date;
-    
+
     @Prop({ required: true })
     arrivalMeetingArea: string;
 
@@ -57,7 +57,7 @@ export class Flight{
 
     @Prop({ required: true })
     durationMinutes: number;
-    
+
     @Prop({ required: true })
     flexibleDate: boolean;
 
@@ -74,7 +74,7 @@ export class Flight{
     notes: INote[];
 
     @Prop({ required: true })
-    luggageWeightUnits: "kgs"|"lbs";
+    luggageWeightUnits: "kgs" | "lbs";
 
     @Prop({ required: true })
     maxLuggagePerPerson: number;
@@ -91,18 +91,18 @@ export class Flight{
     @Prop({ required: true })
     offerExpiryHoursPriorToFlight: number;
 
-    @Prop({ required: true })
-    operatorId: string;
+    @Prop({ type: Types.ObjectId, ref: 'Operator', required: true })
+    operatorId: Types.ObjectId;
 
     @Prop({ required: true, type: Array, default: [] })
     passengers: IPassenger[];
 
     @Prop({ required: true })
     pricePerSeat: number;
-    
+
     @Prop({ required: true })
     pricePerSeatWithPlatformFee: number;
-    
+
     @Prop({ required: true })
     totalFlightPrice: number;
 
@@ -116,10 +116,30 @@ export class Flight{
 
 export const FlightSchema = SchemaFactory.createForClass(Flight);
 
-FlightSchema.index({ 
-    name: 'text', 
-    flightNumber: 'text', 
-    "departureAirport.fullLabel": 'text', 
+FlightSchema.index({
+    name: 'text',
+    flightNumber: 'text',
+    "departureAirport.fullLabel": 'text',
     "arrivalAirport.fullLabel": 'text',
     aircraftModel: 'text'
 })
+
+// Define the virtual field
+FlightSchema.virtual('operator', {
+    ref: 'Operator',
+    localField: 'operatorId',
+    foreignField: '_id',
+    justOne: true, // Since it's a one-to-one relationship
+});
+
+// Define the virtual field
+FlightSchema.virtual('aircraft', {
+    ref: 'Asset',
+    localField: 'aircraftId',
+    foreignField: '_id',
+    justOne: true, // Since it's a one-to-one relationship
+});
+
+FlightSchema.set('toJSON', {
+    virtuals: true,
+});

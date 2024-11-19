@@ -11,7 +11,6 @@ export class FlightsController {
 
     @Post('search')
     search(@Body() criteria: IFlightSearchCriteria[]) {
-        console.log("Flights ~ Controller ~ Search", criteria)
         return this.service.search(criteria);
     }
 
@@ -29,6 +28,11 @@ export class FlightsController {
     @Post('filter')
     findByFilter(@Body() filter: any) {
         return this.service.findByFilter(filter);
+    }
+
+    @Post('filter-with-operators')
+    findByFilterWithOperators(@Body() filter: any) {
+        return this.service.getFlightsWithOperators(filter);
     }
 
     @Post('findInIdsArray')
