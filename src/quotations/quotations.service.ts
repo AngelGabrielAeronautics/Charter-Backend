@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import { Model } from 'mongoose';
 import { Quotation } from 'src/quotations/quotation.schema';
 import { CreateQuotationDto } from './dto/createQuotation.dto';
 import { UpdateQuotationDto } from './dto/updateQuotation.dto';
@@ -50,8 +50,28 @@ export class QuotationsService {
         return await this.model.findByIdAndUpdate(id, dto, { new: true });
     }
 
+    async accept(id: string) {
+        const quotation: IQuotation = await this.model.findById(id);
+        quotation.status = 'Accepted';
+        this.eventEmitter.emit('quotation.status', new QuotationStatusEvent(quotation));
+        return await this.model.findByIdAndUpdate(id, quotation, { new: true });
+    }
+
+    async reject(id: string) {
+        const quotation: IQuotation = await this.model.findById(id);
+        quotation.status = 'Rejected';
+        this.eventEmitter.emit('quotation.status', new QuotationStatusEvent(quotation));
+        return await this.model.findByIdAndUpdate(id, quotation, { new: true });
+    }
+
     findByFilter(filter: any) {
         return this.model.find(filter).populate(['operatorId', 'aircraftId']);
+    }
+
+    findByRequest(id: string) {
+        return this.model.find({
+            quotationRequestId: id
+        }).populate(['operatorId', 'aircraftId']);
     }
 
     @OnEvent('quotation.status', { async: true })
