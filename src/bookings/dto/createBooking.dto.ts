@@ -4,11 +4,6 @@ import { IBookedItem } from "../booking.model";
 import { IAuditFields } from "src/models/audit-fields.model";
 
 export class CreateBookingDto {
-
-    @IsString()
-    @IsOptional()
-    bookingNumber: string;
-
     @IsObject()
     @IsNotEmptyObject()
     customer: IUser;
@@ -63,7 +58,7 @@ export class CreateBookingDto {
     @IsNotEmpty()
     @IsNumber()
     totalAmount: number;
-    
+
     @IsOptional()
     @IsDecimal()
     platformFee?: number;
@@ -71,4 +66,6 @@ export class CreateBookingDto {
     @IsObject()
     @IsNotEmptyObject()
     auditFields: IAuditFields;
+
+    // The bookingNumber is automatically generated, so it's excluded here
 }

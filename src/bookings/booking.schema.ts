@@ -9,7 +9,7 @@ export type BookingDocument = HydratedDocument<Booking>;
 @Schema()
 export class Booking {
 
-    @Prop({ required: false })
+    @Prop({ required: true, unique: true }) // Booking number must be unique
     bookingNumber: string;
 
     @Prop({ required: true, type: Object })

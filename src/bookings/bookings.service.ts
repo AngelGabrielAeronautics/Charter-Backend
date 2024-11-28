@@ -16,6 +16,7 @@ import { Operator } from 'src/schemas/operator.schema';
 import { SendEmailEvent } from 'src/events/notifications.events';
 import { Flight } from 'src/flights/flight.schema';
 import { User } from 'src/schemas/user.schema';
+import { NumberGeneratorService } from 'src/services/number-generator';
 
 @Injectable()
 export class BookingsService {
@@ -26,28 +27,25 @@ export class BookingsService {
         @InjectModel(User.name) private userModel: Model<User>,
         @InjectModel(Flight.name) private flightModel: Model<Flight>,
         private readonly eventEmitter: EventEmitter2,
-
-    ) {
-        // this.monitorInvoiceStatus()
-    }
+        private readonly numberGeneratorService: NumberGeneratorService
+    ) { }
 
     async create(createBookingDto: CreateBookingDto) {
-        console.log("Customer => ", createBookingDto.customer)
-        const booking = new this.model(createBookingDto);
+        // Generate a booking number
+        const bookingNumber = await this.numberGeneratorService.generateNumber('BKN');
+
+        // Create a new booking object and add the generated booking number
+        const booking = new this.model({
+            ...createBookingDto,
+            bookingNumber,
+        });
+
         await booking.save();
 
         const date = new Date();
 
-        // Get the first letter of each name from authenticatedUser.displayName
-        const names = createBookingDto.customer.displayName.split(" ")
-        const initialsArray = names.map((name) => name.charAt(0).toUpperCase())
-        const customerInitials = initialsArray.join("")
-
-        const invoiceNumber = 'INV-'
-            + '-'
-            + customerInitials
-            + '-'
-            + generateUID();
+        // Generate an invoice number
+        const invoiceNumber = await this.numberGeneratorService.generateNumber("INV");
 
         const invoice: IInvoice = {
             invoiceNumber: invoiceNumber,
@@ -69,10 +67,8 @@ export class BookingsService {
             .findByIdAndUpdate(booking.id, {
                 invoiceId: invoiceDocument.id,
                 status: 'Invoiced',
-                bookingNumber: "BK-" + generateUID(),
                 platformFee: platformFee * createBookingDto.totalAmount,
             }, { new: true });
-
     }
 
     async findAll() {
@@ -129,7 +125,7 @@ export class BookingsService {
             const templateName = "booking-cancelled";
 
             // Sub-task LEV-1035: Prepare the email template - Build operator email payload
-            let operatorPayload = {
+            const operatorPayload = {
                 operatorName: operator.airline,
                 bookingId: booking._id,
                 flightNumber: booking.flightNumber,
@@ -153,7 +149,7 @@ export class BookingsService {
             const customerTarget = user.agencyId ? "agent" : "client";
 
             // Sub-task LEV-1035: Prepare the email template - Build customer email payload
-            let customerPayload = {
+            const customerPayload = {
                 customerName: booking.customer.displayName,
                 bookingId: booking._id,
                 flightNumber: booking.flightNumber,
@@ -187,7 +183,6 @@ export class BookingsService {
 
                 break;
         }
-
     }
 
     @OnEvent('flight.fromQuotationRequest', { async: true })
@@ -232,8 +227,8 @@ export class BookingsService {
         }
 
         const totalPriceWithFee = (platformFee * payload.quotation.price.amount) + payload.quotation.price.amount;
-        const clalculatedPlatformFee = (platformFee * payload.quotation.price.amount);
-        const pricePerSeatWithPlatformFee = (totalPriceWithFee / payload.quotationRequest.numberOfPassengers);
+        const calculatedPlatformFee = (platformFee * payload.quotation.price.amount);
+        // const pricePerSeatWithPlatformFee = (totalPriceWithFee / payload.quotationRequest.numberOfPassengers);
 
         const booking: IBooking = {
             flightId: payload.flight._id,
@@ -246,7 +241,7 @@ export class BookingsService {
             currency: payload.quotation.price.currency,
             subTotal: payload.quotation.price.amount,
             taxAmount: 0,
-            platformFee: clalculatedPlatformFee,
+            platformFee: calculatedPlatformFee,
             totalAmount: totalPriceWithFee,
             status: 'Invoiced',
             auditFields: {
@@ -260,8 +255,10 @@ export class BookingsService {
         await doc.save();
 
         const date = new Date();
-        const invoiceNumber = 'INV-'
-            + payload.quotation.quotationNumber;
+
+        const invoiceNumber = await this.numberGeneratorService.generateNumber("INV");
+        // const invoiceNumber = 'INV-'
+        //     + payload.quotation.quotationNumber;
 
         const invoice: IInvoice = {
             invoiceNumber: invoiceNumber,
