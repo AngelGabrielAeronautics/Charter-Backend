@@ -10,6 +10,15 @@ import { ESectionVettingStatus, IOperator } from './operator.model';
 import { IFileInfo } from 'src/models/fileInfo.model';
 import { IFile } from 'src/models/file.model';
 import { VetOperatorDto } from './dto/vet-operator.dto';
+import { SendEmailEvent } from 'src/events/notifications.events';
+
+interface INotify {
+  shouldNotify: boolean,
+  status: "Unverified" | "Verified" | "Rejected",
+  target: "operator" | "client" | "admin" | "agent",
+  email: string
+
+}
 
 @Injectable()
 export class OperatorsService {
@@ -96,28 +105,57 @@ export class OperatorsService {
     }
     const { companyDetails, documentation, termsAndConditions } = doc.vettingStatus;
 
-    console.log("companyDetails", companyDetails)
-    console.log("documentation", documentation)
-    console.log("termsAndConditions", termsAndConditions)
+    // console.log("companyDetails", companyDetails)
+    // console.log("documentation", documentation)
+    // console.log("termsAndConditions", termsAndConditions)
+    let notify: INotify = {
+      shouldNotify: false,
+      status: "Unverified",
+      target: "operator",
+      email: doc.email
+    }
 
     if (companyDetails.toString() == "approved" && documentation.toString() == "approved" && termsAndConditions.toString() == "approved") {
-      console.log("All Sections Approved")
+      // console.log("All Sections Approved")
       doc.status = "Verified"
+      notify = {
+        shouldNotify: true,
+        status: "Verified",
+        target: "operator",
+        email: doc.email
+      }
+    } else if (companyDetails.toString() == "rejected" && documentation.toString() == "rejected" && termsAndConditions.toString() == "rejected") {
+      // console.log("All Sections Rejected")
+      doc.status = "Unverified";
+      notify = {
+        shouldNotify: true,
+        status: "Rejected",
+        target: "operator",
+        email: doc.email
+      }
     } else {
-      console.log("Not All Sections Approved")
+      // console.log("Not All Sections Approved")
       doc.status = "Unverified"
     }
 
     const updatedDoc = doc.save()
 
-    if (vettingAction == ESectionVettingStatus.approved) {
-      // Operator profile section approved
-      // Todo: Notify the operator that this section has been approved
+    const emailSubject = "Profile Status Changed";
+    const templateName = "profile-status-changed";
+
+    const payload = {
+      newProfileStatus: notify.status
     }
 
-    if (vettingAction == ESectionVettingStatus.rejected) {
-      // Operator profile section rejected
-      // Todo: Notify the operator that this section has been rejected
+    if (notify.shouldNotify) {
+      // Sub-task LEV-1037: Send the email - Send operator email notification
+      this.eventEmitter.emit('notification.sendEmail', new SendEmailEvent(
+        [notify.email],
+        emailSubject,
+        notify.target,
+        templateName,
+        payload
+      ));
     }
 
     // const doc = await this.model.findByIdAndUpdate(id, dto, { new: true });
