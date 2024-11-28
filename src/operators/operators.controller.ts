@@ -5,6 +5,8 @@ import { UpdateOperatorDto } from './dto/update-operator.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { IFile } from 'src/models/file.model';
 import { VetOperatorDto } from './dto/vet-operator.dto';
+import { IFileInfo } from 'src/models/fileInfo.model';
+import { CertificateDto } from './dto/certificate.dto';
 
 @Controller('operators')
 export class OperatorsController {
@@ -42,6 +44,40 @@ export class OperatorsController {
     }
 
     return this.service.upload(fileObj, id, key);
+  }
+
+  @Post('upload/certificate/:key/:id')
+  @UseInterceptors(FileInterceptor('file'))
+  uploadCertificate(
+    @Param('id') id: string,
+    @Param('key') key: string,
+    @Body() dto: CertificateDto,
+    @UploadedFile(
+      new ParseFilePipe(
+        {
+          validators: [
+            new MaxFileSizeValidator({ maxSize: 5000000 })
+          ]
+        }
+      ),
+    ) file: Express.Multer.File
+  ) {
+
+    const base64 = Buffer.from(file.buffer).toString('base64');
+
+    const fileObj: IFile = {
+      name: file.originalname,
+      data: base64,
+      mimetype: file.mimetype,
+      size: file.size
+    }
+
+    const certificate: IFileInfo = {
+      ...dto,
+      file: fileObj
+    }
+
+    return this.service.uploadCertificate(certificate, id, key);
   }
 
   @Get()

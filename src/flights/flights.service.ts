@@ -74,13 +74,13 @@ export class FlightsService {
         }
     }
 
-    async create(createFlightDto: CreateFlightDto) {
+    async create(dto: CreateFlightDto) {
         try {
-            const operator = await this.operatorsService.findOne(createFlightDto.operatorId);
-            const aircraft = await this.assetsService.findOne(createFlightDto.aircraftId);
+            const operator = await this.operatorsService.findOne(dto.operatorId);
+            const aircraft = await this.assetsService.findOne(dto.aircraftId);
 
             const assetData = {
-                aircraftId: createFlightDto.aircraftId,
+                aircraftId: dto.aircraftId,
                 aircraftManufacturer: aircraft.manufacturer,
                 aircraftModel: aircraft["model"],
                 aircraftRegistrationNumber: aircraft.registrationNumber,
@@ -100,7 +100,7 @@ export class FlightsService {
                 supplierPaid: false
             }
 
-            const totalPrice = assetData.capacity * createFlightDto.pricePerSeat;
+            const totalPrice = assetData.capacity * dto.pricePerSeat;
             const totalPriceWithFee = (platformFee * totalPrice) + totalPrice;
             const pricePerSeatWithPlatformFee = (totalPriceWithFee / assetData.capacity);
 
@@ -113,7 +113,7 @@ export class FlightsService {
                 + uniqueId.toUpperCase();
 
             const flight = new this.model({
-                ...createFlightDto,
+                ...dto,
                 flightNumber: flightNumber,
                 airline: operator.airline,
                 ...assetData,
@@ -133,7 +133,10 @@ export class FlightsService {
     }
 
     findAll() {
-        return this.model.find();
+        return this.model.find()
+            .populate('operator') // Specify fields to include
+            .populate('aircraft')
+            .exec();
     }
 
     async findByFilter(filter: any) {

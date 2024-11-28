@@ -38,6 +38,28 @@ export class OperatorsService {
     return doc;
   }
 
+  async uploadCertificate(certificate: IFileInfo, id: string, key: string) {
+    const prevDoc = await this.model.findById(id);
+    const certifications = {
+      ...prevDoc.certifications,
+      [key]: certificate
+    }
+    console.log("certifications", certifications)
+    const nextDoc = await this.model.findByIdAndUpdate(id, { certifications }, { new: true })
+
+    nextDoc.save();
+
+    if (!nextDoc) {
+      throw new HttpException('Not Found', HttpStatus.NOT_MODIFIED);
+    }
+
+    this.eventEmitter.emit('operator.update', new OperatorUpdateEvent(
+      nextDoc as unknown as IOperator
+    ));
+
+    return nextDoc;
+  }
+
   findAll() {
     return this.model.find();
   }
