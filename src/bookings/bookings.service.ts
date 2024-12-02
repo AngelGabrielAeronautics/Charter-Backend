@@ -63,6 +63,15 @@ export class BookingsService {
         const invoiceDocument = new this.invoiceModel(invoice);
         await invoiceDocument.save();
 
+        // Update the maxSeatsAvailable on the flight
+        const flight = await this.flightModel.findById(createBookingDto.flightId).exec();
+        const updatedMaxSeatsAvailable = flight.maxSeatsAvailable - createBookingDto.numberOfPassengers;
+
+        await this.flightModel.findByIdAndUpdate(flight._id, { maxSeatsAvailable: updatedMaxSeatsAvailable }, { new: true }).exec();
+
+        // Emit an event to notify other services that a new booking has been created
+        this.eventEmitter.emit('booking.created', booking);
+
         return await this.model
             .findByIdAndUpdate(booking.id, {
                 invoiceId: invoiceDocument.id,
