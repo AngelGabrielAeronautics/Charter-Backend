@@ -113,11 +113,29 @@ export class BookingsService {
 
         // Check if the status was changed to "Cancelled"
         if (existingBooking.status !== updatedBooking.status && updatedBooking.status === "Cancelled") {
-            // Invoke a function to notify relevant parties
-            await this.notifyCancellation(updatedBooking);
+            try {
+                // Increase available seats on flight
+                await this.increaseAvailableSeatsOnBookingCancellation(updatedBooking);
+                // Invoke a function to notify relevant parties
+                await this.notifyCancellation(updatedBooking);
+            } catch (err: any) {
+                console.log(err)
+            }
         }
 
         return updatedBooking;
+    }
+
+    private async increaseAvailableSeatsOnBookingCancellation(booking: any) {
+        try {
+            // Increase available seats on flight
+            const flight = await this.flightModel.findById(booking.flightId._id);
+            await this.flightModel.findOneAndUpdate(booking.flightId._id, {
+                maxSeatsAvailable: flight.maxSeatsAvailable + booking.numberOfPassengers
+            });
+        } catch (err: any) {
+            console.log(err)
+        }
     }
 
     // Function to handle cancellation notifications
@@ -128,7 +146,7 @@ export class BookingsService {
             const operatorEmail = operator.email;
             const operatorTarget = "operator";
 
-            const flight = await this.flightModel.findById(booking.flightId)
+            const flight = await this.flightModel.findById(booking.flightId._id)
 
             const emailSubject = "Booking Cancellation Notification";
             const templateName = "booking-cancelled";
