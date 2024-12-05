@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { QuotationRequestsService } from './quotation-requests.service';
-import { CreateQuotationRequestDto } from './dto/createQuotationRequest.dto';
+import { CreateQuotationRequest2Dto } from './dto/createQuotationRequest2.dto';
 import { UpdateQuotationRequestDto } from './dto/updateQuotationRequest.dto';
 
 @Controller('quotation-requests')
@@ -9,7 +9,7 @@ export class QuotationRequestsController {
     constructor(private readonly service: QuotationRequestsService) {}
 
     @Post()
-    create(@Body() dto: CreateQuotationRequestDto) {
+    create(@Body() dto: CreateQuotationRequest2Dto) {
         return this.service.create(dto);
     }
 
@@ -19,8 +19,13 @@ export class QuotationRequestsController {
     }
 
     @Post('filter')
-    filter(@Body() query: Object) {
+    filter(@Body() query: object) {
         return this.service.findByFilter(query);
+    }
+
+    @Post('findByCountry')
+    findByCountry(@Body() payload: any) {
+        return this.service.findByCountry(payload.country);
     }
 
     @Get(':id')

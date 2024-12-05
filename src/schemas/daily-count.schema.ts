@@ -11,6 +11,12 @@ export class DailyCount extends Document {
 
   @Prop({ default: 0 })
   invoiceCount: number;
+
+  @Prop({ default: 0 })
+  quotationCount: number;
+
+  @Prop({ default: 0 })
+  quotationRequestCount: number;
 }
 
 export const DailyCountSchema = SchemaFactory.createForClass(DailyCount);

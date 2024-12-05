@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { QuotationRequest } from 'src/quotation-requests/quotation-request.schema';
-import { CreateQuotationRequestDto } from './dto/createQuotationRequest.dto';
+import { CreateQuotationRequest2Dto } from './dto/createQuotationRequest2.dto';
 import { UpdateQuotationRequestDto } from './dto/updateQuotationRequest.dto';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { QuotationRequestStatusEvent, QuotationStatusEvent } from 'src/events/quotation-events';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as moment from 'moment';
+import { UsersService } from 'src/users/users.service';
+import { NumberGeneratorService } from 'src/services/number-generator';
 
 
 @Injectable()
@@ -15,12 +17,48 @@ export class QuotationRequestsService {
 
     constructor(
         @InjectModel(QuotationRequest.name) private model: Model<QuotationRequest>,
-        private readonly eventEmitter: EventEmitter2
+        private userModel: UsersService,
+        private readonly eventEmitter: EventEmitter2,
+        private readonly numberGeneratorService: NumberGeneratorService
     ) { }
 
-    create(dto: CreateQuotationRequestDto) {
-        const document = new this.model(dto);
-        return document.save();
+    async create(dto: CreateQuotationRequest2Dto) {
+        try {
+            const { customerId, numberOfPassengers, ...rest } = dto;
+            // Get user from customerId
+            const customer = await this.userModel.findOne(customerId);
+
+            // Parse numberOfPassengers properties to number
+            const _numberOfPassengers = {
+                adults: parseInt(`${numberOfPassengers.adults}`),
+                children: parseInt(`${numberOfPassengers.children}`),
+                infants: parseInt(`${numberOfPassengers.infants}`),
+                total: parseInt(`${numberOfPassengers.total}`)
+            }
+
+            // Generate quotation request number
+            const quotationRequestNumber = await this.numberGeneratorService.generateNumber('QR');
+
+            if (customer && quotationRequestNumber) {
+                const document = new this.model({
+                    quotationRequestNumber,
+                    customerId,
+                    customer,
+                    ...rest,
+                    numberOfPassengers: _numberOfPassengers,
+                    status: 'Pending',
+                    auditFields: {
+                        createdBy: customer.displayName,
+                        createdById: customerId,
+                        dateCreated: new Date()
+                    },
+                });
+
+                return document.save();
+            }
+        } catch (err: any) {
+            console.log(err)
+        }
     }
 
     findAll() {
@@ -39,6 +77,23 @@ export class QuotationRequestsService {
     findByFilter(filter: any) {
         return this.model.find({ ...filter });
     }
+
+    async findByCountry(country: string) {
+        return await this.model.find({
+            status: { $ne: 'Cancelled' },
+            $or: [
+                { 'trip.departureAirport.countryName': country },
+                { 'trip.arrivalAirport.countryName': country }
+            ]
+        })
+    }
+
+    findByCustomerId(customerId: string) {
+        return this.model.find({
+            'customer._id': new Types.ObjectId(customerId) // Querying the embedded object's `_id`
+        });
+    }
+
 
     @OnEvent('quotation.status', { async: true })
     async onQuotationStatusEvent(payload: QuotationStatusEvent) {
@@ -66,19 +121,32 @@ export class QuotationRequestsService {
         console.log('Running handleQuotationRequestsCron()');
         const now = moment()
 
-        const quotationRquests = await this.model
+        const quotationRequests = await this.model
             .find({
                 status: 'Pending',
             });
 
         const items: string[] = [];
-        for (let i = 0; i < quotationRquests.length; i++) {
-            const request = quotationRquests[i];
-            const departureDate = moment(request.dateOfDeparture);
-            const isExpired = departureDate.isSameOrAfter(now);
-            console.log(isExpired, request.dateOfDeparture);
+        for (let i = 0; i < quotationRequests.length; i++) {
+            const request = quotationRequests[i];
+            const tripLegs = request.trip || [];
 
-            if (isExpired) items.push(request._id.toString());
+            let requestExpired = false;
+
+            for (let index = 0; index < tripLegs.length; index++) {
+                const tripLeg = tripLegs[index];
+
+                const departureDate = moment(tripLeg.dateOfDeparture);
+                const isExpired = departureDate.isSameOrAfter(now);
+                console.log(isExpired, tripLeg.dateOfDeparture);
+
+                if (isExpired) {
+                    requestExpired = true;
+                    break;
+                }
+            }
+
+            if (requestExpired) items.push(request._id.toString());
         }
 
         const writeOperations = items.map((item) => {

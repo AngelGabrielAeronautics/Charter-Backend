@@ -1,4 +1,4 @@
-import { IsBoolean, IsDate, IsDateString, IsDecimal, IsNotEmpty, IsNotEmptyObject, IsNumber, IsObject, IsString } from "class-validator";
+import { IsBoolean, IsDateString, IsNotEmpty, IsNotEmptyObject, IsNumber, IsObject, IsString } from "class-validator";
 import { IAirport } from "src/airports/airport.model";
 import { IAuditFields } from "src/models/audit-fields.model";
 import { IUser } from "src/users/user.model";

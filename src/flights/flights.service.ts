@@ -315,7 +315,7 @@ export class FlightsService {
                 + uniqueId.toUpperCase();
 
             const totalPriceWithFee = (platformFee * payload.quotation.price.amount) + payload.quotation.price.amount;
-            const pricePerSeatWithPlatformFee = (totalPriceWithFee / payload.quotationRequest.numberOfPassengers);
+            const pricePerSeatWithPlatformFee = (totalPriceWithFee / payload.quotationRequest.numberOfPassengers.total);
 
             let departureDate: Date;
             if (typeof payload.quotation.flightDetails.departure === 'string' || payload.quotation.flightDetails.departure instanceof String) {

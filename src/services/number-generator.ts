@@ -9,23 +9,30 @@ export class NumberGeneratorService {
     @InjectModel(DailyCount.name) private dailyCountModel: Model<DailyCount>,
   ) { }
 
-  async generateNumber(prefix: 'INV' | 'BKN'): Promise<string> {
+  async generateNumber(prefix: 'INV' | 'BKN' | 'QR' | 'QUO'): Promise<string> {
     const today = new Date().toISOString().slice(0, 10); // Format: YYYY-MM-DD
 
     // Find or create today's daily count
     const dailyCount = await this.dailyCountModel.findOneAndUpdate(
       { date: today },
-      { $setOnInsert: { bookingCount: 0, invoiceCount: 0 } },
+      { $setOnInsert: { bookingCount: 0, invoiceCount: 0, quotationCount: 0, quotationRequestCount: 0 } },
       { new: true, upsert: true },
     );
 
     let sequence: number;
+
     if (prefix === 'BKN') {
       dailyCount.bookingCount += 1;
       sequence = dailyCount.bookingCount;
     } else if (prefix === 'INV') {
       dailyCount.invoiceCount += 1;
       sequence = dailyCount.invoiceCount;
+    } else if (prefix === 'QR') {
+      dailyCount.quotationRequestCount += 1;
+      sequence = dailyCount.quotationRequestCount;
+    } else if (prefix === 'QUO') {
+      dailyCount.quotationCount += 1;
+      sequence = dailyCount.quotationCount;
     }
 
     // Save the updated count

@@ -10,11 +10,17 @@ export interface IUser{
     operatorId?: string;
     phoneNumber?: string;
     country?: string;
-    provider: 'google' | 'facebook' | 'email';
+    provider?: AuthProvider;
     agencyId?: string;
-    fid: string;
+    fid?: string;
     role?: 'Client' | 'Operator' | 'Agency' | 'Administrator' | 'Super User';
     rolePermissions?: string[];
+}
+
+export enum AuthProvider {
+    'google',
+    'facebook',
+    'email',
 }
 
 export interface IFederatedUser{

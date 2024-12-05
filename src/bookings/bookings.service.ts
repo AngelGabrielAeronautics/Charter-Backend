@@ -217,7 +217,7 @@ export class BookingsService {
 
         const bookedItems: IBookedItem[] = [];
 
-        for (let i = 0; i < payload.quotationRequest.numberOfAdults; i++) {
+        for (let i = 0; i < payload.quotationRequest.numberOfPassengers.adults; i++) {
             bookedItems.push(
                 {
                     adults: 1,
@@ -229,7 +229,7 @@ export class BookingsService {
             );
         }
 
-        for (let i = 0; i < payload.quotationRequest.numberOfChildren; i++) {
+        for (let i = 0; i < payload.quotationRequest.numberOfPassengers.children; i++) {
             bookedItems.push(
                 {
                     adults: 0,
@@ -241,7 +241,7 @@ export class BookingsService {
             );
         }
 
-        for (let i = 0; i < payload.quotationRequest.numberOfInfants; i++) {
+        for (let i = 0; i < payload.quotationRequest.numberOfPassengers.infants; i++) {
             bookedItems.push(
                 {
                     adults: 0,
@@ -257,11 +257,25 @@ export class BookingsService {
         const calculatedPlatformFee = (platformFee * payload.quotation.price.amount);
         // const pricePerSeatWithPlatformFee = (totalPriceWithFee / payload.quotationRequest.numberOfPassengers);
 
+        // Get customer from quotationRequest customerId
+        const customer = await this.userModel.findById(payload.quotationRequest.customerId);
+        delete customer._id
+        delete customer.__v
+
         const booking: IBooking = {
             flightId: payload.flight._id,
             bookingNumber: 'CBK' + '-' + generateUID(),
-            customer: payload.quotationRequest.customer,
-            numberOfPassengers: payload.quotationRequest.numberOfPassengers,
+            customer: {
+                email: customer.email,
+                firstNames: customer.firstNames,
+                lastName: customer.lastName,
+                displayName: customer.displayName,
+                address: customer.address,
+                phoneNumber: customer.phoneNumber,
+                country: customer.country,
+                role: customer.role
+            },
+            numberOfPassengers: payload.quotationRequest.numberOfPassengers.total,
             operatorId: payload.flight.operatorId,
             operatorName: payload.flight.airline,
             items: bookedItems,

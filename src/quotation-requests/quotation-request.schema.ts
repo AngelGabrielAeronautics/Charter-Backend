@@ -1,8 +1,8 @@
 import { Prop, Schema, SchemaFactory } from "@nestjs/mongoose";
 import { HydratedDocument } from "mongoose";
-import { IAirport } from "src/airports/airport.model";
 import { IAuditFields } from "src/models/audit-fields.model";
 import { IUser } from "src/users/user.model";
+import { IPassengerCount, ITripLeg } from "./dto/createQuotationRequest2.dto";
 
 export type QuotationRequestDocument = HydratedDocument<QuotationRequest>;
 
@@ -15,32 +15,17 @@ export class QuotationRequest{
     @Prop({ required: true })
     status: "Fulfilled" | "Pending" | "Quoted" | "Cancelled";
 
-    @Prop({ required: true, type: Object })
-    departureAirport: IAirport;
-
-    @Prop({ required: true, type: Object })
-    arrivalAirport: IAirport;
-
     @Prop({ required: true })
-    dateOfDeparture: Date;
-
-    @Prop({ required: true })
-    timeOfDeparture: string;
+    customerId: string;
 
     @Prop({ required: true, type: Object })
     customer: IUser;
 
-    @Prop({ required: true })
-    numberOfPassengers: number;
+    @Prop({ required: true, type: Object })
+    numberOfPassengers: IPassengerCount;
 
-    @Prop({ required: true })
-    numberOfAdults: number;
-
-    @Prop({ required: true })
-    numberOfChildren: number;
-
-    @Prop({ required: true })
-    numberOfInfants: number;
+    @Prop({ required: true, type: Array })
+    trip: ITripLeg[];
 
     @Prop({ required: true })
     petsAllowed: boolean;

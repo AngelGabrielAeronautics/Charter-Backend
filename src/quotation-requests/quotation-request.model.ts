@@ -1,19 +1,13 @@
-import { IAirport } from "src/airports/airport.model";
 import { IAuditFields } from "src/models/audit-fields.model";
-import { IUser } from "src/users/user.model";
+import { IPassengerCount, ITripLeg } from "./dto/createQuotationRequest2.dto";
 
 export interface IQuotationRequest{
+    customerId?: string;
     quotationRequestNumber: string; // e.g QR-20240716-010
-    status: "Fulfilled" | "Pending" | "Quoted" | "Cancelled";
-    departureAirport: IAirport;
-    arrivalAirport: IAirport;
-    dateOfDeparture: Date; // time is inferred from this date
-    customer: IUser;
-    numberOfPassengers: number;
-    numberOfAdults: number;
-    numberOfChildren: number;
-    numberOfInfants: number;
+    numberOfPassengers: IPassengerCount;
+    trip: ITripLeg[]
     petsAllowed: boolean;
     smokingAllowed: boolean;
+    status: "Fulfilled" | "Pending" | "Quoted" | "Cancelled";
     auditFields: IAuditFields;
 }
