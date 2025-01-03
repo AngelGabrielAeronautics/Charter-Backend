@@ -15,7 +15,7 @@ export class Quotation{
     @Prop({ required: true,  type: mongoose.Schema.Types.ObjectId, ref: 'QuotationRequest' })
     quotationRequestId: string;
 
-    @Prop({ required: true })
+    @Prop({ required: true, default: 'Submitted' })
     status: 'Accepted' | 'Submitted' | 'Rejected';
 
     @Prop({ required: true, type: mongoose.Schema.Types.ObjectId, ref: 'Asset' })
@@ -24,8 +24,8 @@ export class Quotation{
     @Prop({ required: true, type: mongoose.Schema.Types.ObjectId, ref: 'Operator' })
     operatorId: string;
 
-    @Prop({ required: true })
-    flightDuration: number; // Hours
+    // @Prop({ required: true })
+    // flightDuration: string; // Hours
 
     @Prop({ required: true, type: Object })
     price: IMoney;

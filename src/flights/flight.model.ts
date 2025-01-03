@@ -3,6 +3,7 @@ import { IAuditFields } from "src/models/audit-fields.model"
 import { IContactDetails } from "src/models/contact.model"
 import { INote } from "src/models/notes.model"
 import { IPerson } from "src/models/person.model"
+import { ITripDetailsItem } from "src/quotations/quotation.model"
 
 export interface IFlight {
   _id?: string;
@@ -39,7 +40,7 @@ export interface IFlight {
 
   totalFlightPrice: number;
   pricePerSeatWithPlatformFee: number;
-  
+  trip: ITripDetailsItem[];
 
   quotationId?: string;
   auditFields: IAuditFields;

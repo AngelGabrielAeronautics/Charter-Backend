@@ -317,20 +317,6 @@ export class FlightsService {
             const totalPriceWithFee = (platformFee * payload.quotation.price.amount) + payload.quotation.price.amount;
             const pricePerSeatWithPlatformFee = (totalPriceWithFee / payload.quotationRequest.numberOfPassengers.total);
 
-            let departureDate: Date;
-            if (typeof payload.quotation.flightDetails.departure === 'string' || payload.quotation.flightDetails.departure instanceof String) {
-                departureDate = new Date(payload.quotation.flightDetails.departure);
-            } else {
-                departureDate = payload.quotation.flightDetails.departure;
-            }
-
-            let arrivalDate: Date;
-            if (typeof payload.quotation.flightDetails.arrivalDate === 'string' || payload.quotation.flightDetails.arrivalDate instanceof String) {
-                arrivalDate = new Date(payload.quotation.flightDetails.arrivalDate);
-            } else {
-                arrivalDate = payload.quotation.flightDetails.arrivalDate;
-            }
-
             const checklist = {
                 adminNotes: [],
                 aircraftBooked: false,
@@ -351,19 +337,27 @@ export class FlightsService {
                 quotationId: payload.quotation._id,
                 airline: operator.airline,
                 aircraftRegistrationNumber: aircraft.registrationNumber,
-                aircraftModel: aircraft.model,
+                aircraftModel: aircraft["model"],
                 aircraftManufacturer: aircraft.manufacturer,
                 flightNumber: flightNumber,
                 totalFlightPrice: totalPriceWithFee,
-                departure: departureDate.toISOString(), // Convert to ISO string
-                arrivalDate: arrivalDate.toISOString(), // Convert to ISO string
+                departure: payload.quotation.flightDetails.trip[0].departureDate,
+                arrivalDate: payload.quotation.flightDetails.trip[0].arrivalDate,
                 pricePerSeatWithPlatformFee,
-                maxSeatsAvailable: aircraft.seatingCapacity,
+                maxSeatsAvailable: aircraft.seatingCapacity - payload.quotationRequest.numberOfPassengers.total,
                 checklist: checklist,
                 flexibleRouting: payload.quotation.flightDetails.flexibleRouting || false,
                 flexibleDepartureTime: payload.quotation.flightDetails.flexibleDepartureTime || false,
                 flexibleDate: payload.quotation.flightDetails.flexibleDate || false,
                 capacity: aircraft.seatingCapacity,
+                meetingArea: payload.quotation.flightDetails.trip[0].departureMeetingPlace,
+                meetingTime: payload.quotation.flightDetails.trip[0].departureMeetingTime,
+                arrivalMeetingArea: payload.quotation.flightDetails.trip[0].arrivalMeetingPlace,
+                arrivalMeetingTime: payload.quotation.flightDetails.trip[0].arrivalMeetingTime,
+                durationMinutes: payload.quotation.flightDetails.trip[0].flightDurationMinutes,
+                duration: payload.quotation.flightDetails.trip[0].flightDurationHours,
+                arrivalAirport: payload.quotation.flightDetails.trip[0].arrivalAirport,
+                departureAirport: payload.quotation.flightDetails.trip[0].departureAirport,
                 status: 'Invoiced',
                 auditFields: {
                     createdBy: 'System',

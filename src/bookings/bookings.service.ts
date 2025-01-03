@@ -258,22 +258,21 @@ export class BookingsService {
         // const pricePerSeatWithPlatformFee = (totalPriceWithFee / payload.quotationRequest.numberOfPassengers);
 
         // Get customer from quotationRequest customerId
-        const customer = await this.userModel.findById(payload.quotationRequest.customerId);
-        delete customer._id
-        delete customer.__v
+        const { email, firstNames, lastName, displayName, address, phoneNumber, country, role } = await this.userModel.findById(payload.quotationRequest.customerId);
 
         const booking: IBooking = {
             flightId: payload.flight._id,
             bookingNumber: 'CBK' + '-' + generateUID(),
             customer: {
-                email: customer.email,
-                firstNames: customer.firstNames,
-                lastName: customer.lastName,
-                displayName: customer.displayName,
-                address: customer.address,
-                phoneNumber: customer.phoneNumber,
-                country: customer.country,
-                role: customer.role
+                _id: payload.quotationRequest.customerId,
+                email,
+                firstNames,
+                lastName,
+                displayName,
+                address,
+                phoneNumber,
+                country,
+                role
             },
             numberOfPassengers: payload.quotationRequest.numberOfPassengers.total,
             operatorId: payload.flight.operatorId,
@@ -298,8 +297,6 @@ export class BookingsService {
         const date = new Date();
 
         const invoiceNumber = await this.numberGeneratorService.generateNumber("INV");
-        // const invoiceNumber = 'INV-'
-        //     + payload.quotation.quotationNumber;
 
         const invoice: IInvoice = {
             invoiceNumber: invoiceNumber,

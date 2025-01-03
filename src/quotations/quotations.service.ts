@@ -9,18 +9,45 @@ import { QuotationStatusEvent } from 'src/events/quotation-events';
 import { IQuotation } from './quotation.model';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import * as moment from 'moment';
+import { NumberGeneratorService } from 'src/services/number-generator';
 
 @Injectable()
 export class QuotationsService {
 
     constructor(
         @InjectModel(Quotation.name) private model: Model<Quotation>,
-        private readonly eventEmitter: EventEmitter2
+        private readonly eventEmitter: EventEmitter2,
+        private readonly numberGeneratorService: NumberGeneratorService
     ) { }
 
-    create(dto: CreateQuotationDto) {
-        const quotation = new this.model(dto);
-        return quotation.save();
+    async create(dto: CreateQuotationDto) {
+        try {
+            // Generate quotation request number
+            const quotationNumber = await this.numberGeneratorService.generateNumber('QUO');
+
+            const trip = dto.flightDetails.trip.map((tripLeg: any) => {
+                return {
+                    ...tripLeg,
+                    flightDuration: `${String(tripLeg.flightDurationHours).padStart(2, '0')}:${String(tripLeg.flightDurationMinutes).padStart(2, '0')}`,
+                    flexibleRouting: tripLeg.flexibleRouting ? true : false,
+                    flexibleDate: tripLeg.flexibleDate ? true : false,
+                    flexibleDepartureTime: tripLeg.flexibleDepartureTime ? true : false,
+                }
+            })
+
+            const quotation = await this.model.create({
+                quotationNumber,
+                ...dto,
+                flightDetails: {
+                    ...dto.flightDetails,
+                    trip
+                }
+            })
+
+            return this.model.findById(quotation._id).populate(['operatorId', 'aircraftId']);
+        } catch (error) {
+            console.log(error)
+        }
     }
 
     findAll() {
