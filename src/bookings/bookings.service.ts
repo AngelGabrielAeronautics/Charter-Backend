@@ -1,287 +1,173 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { Booking } from 'src/bookings/booking.schema';
-import { CreateBookingDto } from './dto/createBooking.dto';
-import { Invoice } from 'src/schemas/invoice.schema';
-import { IInvoice } from 'src/invoices/invoice.model';
-import { UpdateBookingDto } from './dto/updateBooking.dto';
-import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
-import { InvoiceStatusChangeEvent } from 'src/events/invoice-status-change.event';
-import { FlightFromQuotationRequest } from 'src/events/flights.events';
-import { IBookedItem, IBooking } from './booking.model';
-import { generateUID } from 'src/utils/uid.util';
-import { platformFee } from 'src/utils/constants';
-import { Operator } from 'src/schemas/operator.schema';
-import { SendEmailEvent } from 'src/events/notifications.events';
-import { Flight } from 'src/flights/flight.schema';
-import { User } from 'src/schemas/user.schema';
+import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common"
+import { InjectModel } from "@nestjs/mongoose"
+import { type Model, Types } from "mongoose"
+import { Booking, type BookingDocument } from "./schemas/booking.schema"
+import type { CreateBookingDto } from "./dto/create-booking.dto"
+import type { QuotesService } from "../quotes/quotes.service"
+import { v4 as uuidv4 } from "uuid"
 
 @Injectable()
 export class BookingsService {
-    constructor(
-        @InjectModel(Booking.name) private model: Model<Booking>,
-        @InjectModel(Invoice.name) private invoiceModel: Model<Invoice>,
-        @InjectModel(Operator.name) private operatorModel: Model<Operator>,
-        @InjectModel(User.name) private userModel: Model<User>,
-        @InjectModel(Flight.name) private flightModel: Model<Flight>,
-        private readonly eventEmitter: EventEmitter2,
+  constructor(
+    @InjectModel(Booking.name) private bookingModel: Model<BookingDocument>,
+    private quotesService: QuotesService
+  ) {}
 
-    ) {
-        // this.monitorInvoiceStatus()
+  async create(createBookingDto: CreateBookingDto, clientId: string): Promise<Booking> {
+    // Get the quote to ensure it exists and is accepted
+    const quote = await this.quotesService.findOne(createBookingDto.quoteId)
+
+    if (quote.status !== "accepted") {
+      throw new BadRequestException("Cannot create a booking for a quote that has not been accepted")
     }
 
-    async create(createBookingDto: CreateBookingDto) {
-        console.log("Customer => ", createBookingDto.customer)
-        const booking = new this.model(createBookingDto);
-        await booking.save();
+    // Get the quote request details
+    const quoteRequest = quote.quoteRequestId as any
 
-        const date = new Date();
-
-        // Get the first letter of each name from authenticatedUser.displayName
-        const names = createBookingDto.customer.displayName.split(" ")
-        const initialsArray = names.map((name) => name.charAt(0).toUpperCase())
-        const customerInitials = initialsArray.join("")
-
-        const invoiceNumber = 'INV-'
-            + '-'
-            + customerInitials
-            + '-'
-            + generateUID();
-
-        const invoice: IInvoice = {
-            invoiceNumber: invoiceNumber,
-            status: 'Due',
-            subTotal: createBookingDto.subTotal,
-            taxAmount: createBookingDto.taxAmount,
-            totalAmount: createBookingDto.totalAmount,
-            customerId: createBookingDto.customer._id,
-            bookingId: booking.id,
-            dateIssued: date,
-            currency: createBookingDto.currency,
-            auditFields: createBookingDto.auditFields
-        }
-
-        const invoiceDocument = new this.invoiceModel(invoice);
-        await invoiceDocument.save();
-
-        return await this.model
-            .findByIdAndUpdate(booking.id, {
-                invoiceId: invoiceDocument.id,
-                status: 'Invoiced',
-                bookingNumber: "BK-" + generateUID(),
-                platformFee: platformFee * createBookingDto.totalAmount,
-            }, { new: true });
-
+    if (quoteRequest.clientId !== clientId) {
+      throw new BadRequestException("You are not authorized to create a booking for this quote")
     }
 
-    async findAll() {
-        return await this.model.find().populate(['invoiceId', 'flightId', 'operatorId']);
+    // Generate a unique booking number
+    const bookingNumber = `BK-${uuidv4().substring(0, 8)}`.toUpperCase()
+
+    const createdBooking = new this.bookingModel({
+      bookingNumber,
+      clientId,
+      quoteRequestId: quoteRequest._id,
+      quoteId: quote._id,
+      operatorId: quote.operatorId,
+      from: quoteRequest.from,
+      to: quoteRequest.to,
+      date: quoteRequest.date,
+      returnDate: quoteRequest.returnDate,
+      departureTime: quote.departureTime,
+      arrivalTime: quote.arrivalTime,
+      returnDepartureTime: quote.returnDepartureTime,
+      returnArrivalTime: quote.returnArrivalTime,
+      passengers: quoteRequest.passengers,
+      aircraftType: quote.aircraftType,
+      aircraftRegistration: quote.aircraftRegistration,
+      totalPrice: quote.price,
+      currency: quote.currency || "EUR",
+      status: "pending",
+      specialRequests: createBookingDto.specialRequests,
+      passengerDetails: createBookingDto.passengerDetails,
+    })
+
+    return createdBooking.save()
+  }
+
+  async findAll(filters: any = {}): Promise<Booking[]> {
+    return this.bookingModel
+      .find(filters)
+      .populate("quoteRequestId")
+      .populate("quoteId")
+      .populate("invoices")
+      .populate("payments")
+      .sort({ createdAt: -1 })
+      .exec()
+  }
+
+  async findOne(id: string): Promise<Booking> {
+    const isValidId = Types.ObjectId.isValid(id)
+
+    let booking
+    if (isValidId) {
+      booking = await this.bookingModel
+        .findById(id)
+        .populate("quoteRequestId")
+        .populate("quoteId")
+        .populate("invoices")
+        .populate("payments")
+        .exec()
     }
 
-    async findInIdsArray(filter: any) {
-        if (filter._ids && Array.isArray(filter._ids)) {
-            filter._id = { $in: filter._ids };
-            delete filter._ids; // Remove _ids from the filter as it has been transformed
-        }
-        return await this.model.find({ ...filter }).populate(['invoiceId', 'flightId', 'operatorId']);
+    if (!booking) {
+      // Try to find by booking number if not found by ID
+      booking = await this.bookingModel
+        .findOne({ bookingNumber: id })
+        .populate("quoteRequestId")
+        .populate("quoteId")
+        .populate("invoices")
+        .populate("payments")
+        .exec()
     }
 
-    findOne(id: string) {
-        return this.model.findById(id).populate(['invoiceId', 'flightId', 'operatorId']);
+    if (!booking) {
+      throw new NotFoundException(`Booking with ID or number ${id} not found`)
     }
 
-    findByFilter(filter: any) {
-        return this.model.find({ ...filter }).populate(['invoiceId', 'flightId', 'operatorId']);
+    return booking
+  }
+
+  async update(id: string, updateData: Partial<Booking>, clientId: string): Promise<Booking> {
+    const booking = await this.bookingModel.findById(id).exec()
+
+    if (!booking) {
+      throw new NotFoundException(`Booking with ID ${id} not found`)
     }
 
-    async update(id: string, updateBookingDto: UpdateBookingDto) {
-        // Fetch the current booking status before updating
-        const existingBooking = await this.model.findById(id);
-
-        if (!existingBooking) {
-            throw new Error('Booking not found');
-        }
-
-        // Perform the update
-        const updatedBooking = await this.model.findByIdAndUpdate(id, updateBookingDto, { new: true }).populate(['invoiceId', 'flightId', 'operatorId']);
-
-        // Check if the status was changed to "Cancelled"
-        if (existingBooking.status !== updatedBooking.status && updatedBooking.status === "Cancelled") {
-            // Invoke a function to notify relevant parties
-            await this.notifyCancellation(updatedBooking);
-        }
-
-        return updatedBooking;
+    if (booking.clientId !== clientId) {
+      throw new BadRequestException("You are not authorized to update this booking")
     }
 
-    // Function to handle cancellation notifications
-    private async notifyCancellation(booking: any) {
-        try {
-            // Sub-task LEV-1036: Determine email recipients - Operator
-            const operator = await this.operatorModel.findById(booking.operatorId)
-            const operatorEmail = operator.email;
-            const operatorTarget = "operator";
-
-            const flight = await this.flightModel.findById(booking.flightId)
-
-            const emailSubject = "Booking Cancellation Notification";
-            const templateName = "booking-cancelled";
-
-            // Sub-task LEV-1035: Prepare the email template - Build operator email payload
-            let operatorPayload = {
-                operatorName: operator.airline,
-                bookingId: booking._id,
-                flightNumber: booking.flightNumber,
-                customerName: booking.customer.displayName,
-                departureAirport: flight.departureAirport,
-                arrivalAirport: flight.arrivalAirport,
-            }
-
-            // Sub-task LEV-1037: Send the email - Send operator email notification
-            this.eventEmitter.emit('notification.sendEmail', new SendEmailEvent(
-                [operatorEmail],
-                emailSubject,
-                operatorTarget,
-                templateName,
-                operatorPayload
-            ));
-
-            // Sub-task LEV-1036: Determine email recipients - Customer
-            const user = await this.userModel.findById(booking.customer._id)
-            const customerEmail = booking.customer.email;
-            const customerTarget = user.agencyId ? "agent" : "client";
-
-            // Sub-task LEV-1035: Prepare the email template - Build customer email payload
-            let customerPayload = {
-                customerName: booking.customer.displayName,
-                bookingId: booking._id,
-                flightNumber: booking.flightNumber,
-                departureAirport: flight.departureAirport,
-                arrivalAirport: flight.arrivalAirport,
-            }
-
-            // Sub-task LEV-1037: Send the email - Send customer email notification
-            this.eventEmitter.emit('notification.sendEmail', new SendEmailEvent(
-                [customerEmail],
-                emailSubject,
-                customerTarget,
-                templateName,
-                customerPayload
-            ));
-        } catch (error) {
-            console.error(error);
-        }
+    if (booking.status !== "pending") {
+      throw new BadRequestException(`Cannot update a booking with status ${booking.status}`)
     }
 
-    @OnEvent('invoice.statusChange', { async: true })
-    async updateBookingStatus(payload: InvoiceStatusChangeEvent) {
-        await this.model.findByIdAndUpdate(payload.bookingId, { status: payload.status });
+    return this.bookingModel.findByIdAndUpdate(id, updateData, { new: true }).exec()
+  }
 
-        switch (payload.status) {
-            case 'Paid':
-                break;
-            case 'Cancelled':
-                break;
-            default:
+  async cancel(id: string, reason: string, clientId: string): Promise<Booking> {
+    const booking = await this.bookingModel.findById(id).exec()
 
-                break;
-        }
-
+    if (!booking) {
+      throw new NotFoundException(`Booking with ID ${id} not found`)
     }
 
-    @OnEvent('flight.fromQuotationRequest', { async: true })
-    async createBookingFromQuotationRequest(payload: FlightFromQuotationRequest) {
-
-        const bookedItems: IBookedItem[] = [];
-
-        for (let i = 0; i < payload.quotationRequest.numberOfAdults; i++) {
-            bookedItems.push(
-                {
-                    adults: 1,
-                    children: 0,
-                    infants: 0,
-                    totalNumberOfPassengers: 1,
-                    totalPrice: payload.flight.pricePerSeat
-                }
-            );
-        }
-
-        for (let i = 0; i < payload.quotationRequest.numberOfChildren; i++) {
-            bookedItems.push(
-                {
-                    adults: 0,
-                    children: 1,
-                    infants: 0,
-                    totalNumberOfPassengers: 1,
-                    totalPrice: payload.flight.pricePerSeat
-                }
-            );
-        }
-
-        for (let i = 0; i < payload.quotationRequest.numberOfInfants; i++) {
-            bookedItems.push(
-                {
-                    adults: 0,
-                    children: 0,
-                    infants: 1,
-                    totalNumberOfPassengers: 1,
-                    totalPrice: payload.flight.pricePerSeat
-                }
-            );
-        }
-
-        const totalPriceWithFee = (platformFee * payload.quotation.price.amount) + payload.quotation.price.amount;
-        const clalculatedPlatformFee = (platformFee * payload.quotation.price.amount);
-        const pricePerSeatWithPlatformFee = (totalPriceWithFee / payload.quotationRequest.numberOfPassengers);
-
-        const booking: IBooking = {
-            flightId: payload.flight._id,
-            bookingNumber: 'CBK' + '-' + generateUID(),
-            customer: payload.quotationRequest.customer,
-            numberOfPassengers: payload.quotationRequest.numberOfPassengers,
-            operatorId: payload.flight.operatorId,
-            operatorName: payload.flight.airline,
-            items: bookedItems,
-            currency: payload.quotation.price.currency,
-            subTotal: payload.quotation.price.amount,
-            taxAmount: 0,
-            platformFee: clalculatedPlatformFee,
-            totalAmount: totalPriceWithFee,
-            status: 'Invoiced',
-            auditFields: {
-                createdBy: 'System',
-                createdById: '',
-                dateCreated: new Date(),
-            }
-        };
-
-        const doc = new this.model(booking);
-        await doc.save();
-
-        const date = new Date();
-        const invoiceNumber = 'INV-'
-            + payload.quotation.quotationNumber;
-
-        const invoice: IInvoice = {
-            invoiceNumber: invoiceNumber,
-            status: 'Due',
-            subTotal: booking.subTotal,
-            taxAmount: booking.taxAmount,
-            totalAmount: totalPriceWithFee,
-            customerId: booking.customer._id,
-            bookingId: doc._id.toString(),
-            quotationId: payload.quotation._id,
-            dateIssued: date,
-            currency: booking.currency,
-            auditFields: booking.auditFields
-        }
-
-        const invoiceDocument = new this.invoiceModel(invoice);
-        await invoiceDocument.save();
-
-        await this.model
-            .findByIdAndUpdate(doc._id, { invoiceId: invoiceDocument._id.toString() }, { new: true });
-
+    if (booking.clientId !== clientId) {
+      throw new BadRequestException("You are not authorized to cancel this booking")
     }
+
+    if (booking.status === "cancelled") {
+      throw new BadRequestException("This booking is already cancelled")
+    }
+
+    if (booking.status === "completed") {
+      throw new BadRequestException("Cannot cancel a completed booking")
+    }
+
+    return this.bookingModel
+      .findByIdAndUpdate(
+        id,
+        {
+          status: "cancelled",
+          cancellationReason: reason,
+          cancellationDate: new Date(),
+        },
+        { new: true },
+      )
+      .exec()
+  }
+
+  async getClientBookings(clientId: string): Promise<Booking[]> {
+    return this.findAll({ clientId })
+  }
+
+  async getOperatorBookings(operatorId: string): Promise<Booking[]> {
+    return this.findAll({ operatorId })
+  }
+
+  async addInvoiceToBooking(bookingId: string, invoiceId: Types.ObjectId): Promise<Booking> {
+    return this.bookingModel.findByIdAndUpdate(bookingId, { $push: { invoices: invoiceId } }, { new: true }).exec()
+  }
+
+  async addPaymentToBooking(bookingId: string, paymentId: Types.ObjectId): Promise<Booking> {
+    return this.bookingModel.findByIdAndUpdate(bookingId, { $push: { payments: paymentId } }, { new: true }).exec()
+  }
+
+  async updateBookingStatus(bookingId: string, status: string): Promise<Booking> {
+    return this.bookingModel.findByIdAndUpdate(bookingId, { status }, { new: true }).exec()
+  }
 }

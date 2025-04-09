@@ -1,0 +1,191 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(auto()) @map("_id") @db.ObjectId
+  email         String    @unique
+  name          String?
+  role          String    @default("user") // user, operator, admin
+  bookings      Booking[]
+  quoteRequests QuoteRequest[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Aircraft {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  registration      String    @unique
+  manufacturer      String
+  model             String
+  category          String
+  seats             Int
+  range             Int
+  operatorId        String
+  images            String[]
+  deadLegs          DeadLeg[]
+  quotes            Quote[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model DeadLeg {
+  id                  String    @id @default(auto()) @map("_id") @db.ObjectId
+  flightNumber        String    @unique
+  operatorId          String
+  aircraft            Aircraft  @relation(fields: [aircraftId], references: [id])
+  aircraftId          String    @db.ObjectId
+  from                String
+  to                  String
+  flexibleRouting     Boolean   @default(false)
+  date                DateTime
+  departureTime       String
+  flightDuration      Int
+  dateFlexible        Boolean   @default(false)
+  departureTimeFlexible Boolean @default(false)
+  offerExpiresHours   Int
+  maxSeatsAvailable   Int
+  maxLuggagePerPassenger Int
+  pricePerSeat        Float
+  notes               String?
+  status              String    @default("active")
+  bookings            Booking[]
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model QuoteRequest {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  requestNumber     String    @unique
+  client            User      @relation(fields: [clientId], references: [id])
+  clientId          String    @db.ObjectId
+  from              String
+  to                String
+  date              DateTime
+  returnDate        DateTime?
+  time              String?
+  passengers        Int
+  isFlexibleDate    Boolean   @default(false)
+  isFlexibleTime    Boolean   @default(false)
+  isReturnFlight    Boolean   @default(false)
+  multiCityRoutes   String[]
+  extraBaggage      Boolean?
+  pets              Boolean?
+  hardBags          Boolean?
+  extras            Json?
+  status            String    @default("pending")
+  quotes            Quote[]
+  expiresAt         DateTime
+  acceptedQuoteId   String?   @db.ObjectId
+  notifiedOperators String[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Quote {
+  id                String      @id @default(auto()) @map("_id") @db.ObjectId
+  quoteNumber       String      @unique
+  quoteRequest      QuoteRequest @relation(fields: [quoteRequestId], references: [id])
+  quoteRequestId    String      @db.ObjectId
+  operatorId        String
+  operatorQuoteNumber String
+  aircraft          Aircraft    @relation(fields: [aircraftId], references: [id])
+  aircraftId        String      @db.ObjectId
+  price             Float
+  currency          String      @default("USD")
+  status            String      @default("pending")
+  departureTime     String?
+  arrivalTime       String?
+  returnDepartureTime String?
+  returnArrivalTime String?
+  technicalStops    String[]
+  responseMessage   String?
+  responseType      String?
+  expiresAt         DateTime
+  bookings          Booking[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+}
+
+model Booking {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  bookingNumber     String    @unique
+  client            User      @relation(fields: [clientId], references: [id])
+  clientId          String    @db.ObjectId
+  quoteId           String?   @db.ObjectId
+  quote             Quote?    @relation(fields: [quoteId], references: [id])
+  deadLegId         String?   @db.ObjectId
+  deadLeg           DeadLeg?  @relation(fields: [deadLegId], references: [id])
+  operatorId        String
+  from              String
+  to                String
+  date              DateTime
+  returnDate        DateTime?
+  departureTime     String?
+  arrivalTime       String?
+  returnDepartureTime String?
+  returnArrivalTime String?
+  passengers        Int
+  aircraftType      String
+  aircraftRegistration String
+  totalPrice        Float
+  currency          String    @default("USD")
+  status            String    @default("pending")
+  invoices          Invoice[]
+  payments          Payment[]
+  cancellationReason String?
+  cancellationDate  DateTime?
+  specialRequests   String?
+  passengerDetails  Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Invoice {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  invoiceNumber     String    @unique
+  booking           Booking   @relation(fields: [bookingId], references: [id])
+  bookingId         String    @db.ObjectId
+  clientId          String
+  operatorId        String
+  amount            Float
+  currency          String    @default("USD")
+  dueDate           DateTime
+  status            String    @default("pending")
+  paymentInstructions String?
+  bankDetails       Json?
+  payments          Payment[]
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}
+
+model Payment {
+  id                String    @id @default(auto()) @map("_id") @db.ObjectId
+  paymentNumber     String    @unique
+  invoice           Invoice   @relation(fields: [invoiceId], references: [id])
+  invoiceId         String    @db.ObjectId
+  booking           Booking   @relation(fields: [bookingId], references: [id])
+  bookingId         String    @db.ObjectId
+  clientId          String
+  amount            Float
+  currency          String    @default("USD")
+  paymentMethod     String
+  paymentDate       DateTime?
+  bankTransferReference String?
+  bankTransferDate  DateTime?
+  verifiedBy        String?
+  verificationDate  DateTime?
+  status            String    @default("pending")
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+}

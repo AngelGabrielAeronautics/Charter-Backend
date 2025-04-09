@@ -1,29 +1,15 @@
-import { Module } from '@nestjs/common';
-import { MongooseModule } from '@nestjs/mongoose';
-import { Booking, BookingSchema } from 'src/bookings/booking.schema';
-import { Invoice, InvoiceSchema } from 'src/schemas/invoice.schema';
-import { InvoicesService } from './invoices.service';
-import { InvoicesController } from './invoices.controller';
-import { Ticket, TicketSchema } from 'src/schemas/ticket.schema';
+import { Module } from "@nestjs/common"
+import { MongooseModule } from "@nestjs/mongoose"
+import { InvoicesController } from "./invoices.controller"
+import { InvoicesService } from "./invoices.service"
+import { Invoice, InvoiceSchema } from "./schemas/invoice.schema"
+import { BookingsModule } from "../bookings/bookings.module"
+import { AuthModule } from "../auth/auth.module"
 
 @Module({
-    imports: [MongooseModule.forFeature(
-      [
-        {
-          name: Invoice.name,
-          schema: InvoiceSchema
-        },
-        {
-          name: Booking.name,
-          schema: BookingSchema
-        },
-        {
-          name: Ticket.name,
-          schema: TicketSchema
-        }
-      ]
-    )],
-    providers: [InvoicesService],
-    controllers: [InvoicesController],
+  imports: [MongooseModule.forFeature([{ name: Invoice.name, schema: InvoiceSchema }]), BookingsModule, AuthModule],
+  controllers: [InvoicesController],
+  providers: [InvoicesService],
+  exports: [InvoicesService],
 })
 export class InvoicesModule {}

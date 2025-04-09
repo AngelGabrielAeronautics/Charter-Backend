@@ -1,1 +1,0 @@
-export const platformFee: number = (10/100);
